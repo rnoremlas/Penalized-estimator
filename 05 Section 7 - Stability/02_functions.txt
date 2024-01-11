@@ -1,0 +1,84 @@
+############################################
+
+MSEhk = function(X,h,k,sigma,beta,alfa){
+  # in X there is cte
+  n = dim(X)[1]
+  p = dim(X)[2]
+  #
+  XX = crossprod(X)
+  landas = eigen(XX)[[1]]
+  S1 = (sigma^2)*sum(landas/(landas+k)^2)
+  #
+  XXk = XX + k*diag(p)
+  Zk = solve(XXk)
+  S2 = (k^2)*t(beta)%*%Zk%*%Zk%*%beta
+  #
+  S3 = 2*k*h*t(beta)%*%t(Zk%*%XX-diag(p))%*%Zk%*%alfa
+  #
+  S4 = (k^2)*(h^2)*t(alfa)%*%crossprod(Zk)%*%alfa
+  #
+  Shk = S3+S4
+  mse = S1+S2+Shk
+  #
+  output = data.frame(mse, Shk)
+  return(output)
+}
+
+#
+
+minMSEhk = function(X, h=1, sigma, beta, alfa, start = 0, leap = 0.05, stop = 1, fig = 1){
+  kas = seq(start, stop, leap)
+  MSEs = numeric()
+  i = 0
+  for (k in kas){
+    i = i + 1
+    MSEs[i] = MSEhk(X,h,k,sigma,beta,alfa)[[1]]
+  }
+  if (fig == 1) plot(kas, MSEs, type="b", lwd=2, col="blue", xlab="k")
+  #
+  MSEmins = numeric()
+  index = numeric()
+  l = 0
+  for (j in 2:(i-1)){
+    if ((MSEs[j]<MSEs[j-1]) & (MSEs[j]<MSEs[j+1])){
+      l = l + 1
+      MSEmins[l] = kas[j]
+      index[l] = j
+    }
+  }
+  if (l==0) MSEmins = -1
+  #
+  global = 0
+  if (l==1) global = 1
+  if (l>1) global = 2
+  #
+  output = data.frame(min(MSEmins), MSEs[min(index)], global) 
+  return(output)
+}
+
+#
+
+classification = function(output){
+	A = 0 # ECMkh < ECMk < ECM
+	B = 0 # ECMkh < ECM < ECMk
+	C = 0 # ECMk < ECMkh < ECM
+	D = 0 # ECMk < ECM < ECMkh
+	E = 0 # ECM < ECMkh < ECMk
+	G = 0 # ECM < ECMk < ECMkh
+	for (i in 1:nrow(output)){
+	  if ((output[i,1]<output[i,2])&(output[i,2]<output[i,3])) A = A + 1 # ECMkh is the best of all
+	  if ((output[i,1]<output[i,3])&(output[i,3]<output[i,2])) B = B + 1      # ECMk is the worst of all
+	  if ((output[i,2]<output[i,1])&(output[i,1]<output[i,3])) C = C + 1 # ECMk is the best of all
+	  if ((output[i,2]<output[i,3])&(output[i,3]<output[i,1])) D = D + 1      # ECMkh is the worst of all
+	  if ((output[i,3]<output[i,1])&(output[i,1]<output[i,2])) E = E + 1 # ECM is the best of all
+	  if ((output[i,3]<output[i,2])&(output[i,2]<output[i,1])) G = G + 1      # ECMkh is the worst of all
+	}
+	num = c(A, B, C, D, E, G)
+	  sum(num)
+	porc = (num/nrow(output))*100
+	  sum(porc)
+	out = data.frame(num, porc)
+	return(out)
+}
+
+############################################

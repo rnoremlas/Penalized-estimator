@@ -1,0 +1,258 @@
+GRAPHts <- function(y, alfa, h, p, start, leap, stop, name, asymptote, beta){
+	win.graph()
+		x = ts(y, start = start, deltat = leap)
+		plot(x, plot.type="single", type="l", col = 2:(p+1), lwd = 2, xlab="k", ylab=name)
+		abline(h = 0, col = "black", lwd = 3)
+		abline(v = 0, col = "black", lwd = 3)
+		grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = 2)
+		for (i in 1:p) {
+			points(start, y[1,i], col = "red", pch = 0, lwd = 5)
+			if(beta==1) {
+				if (h!=0) {
+					points(stop, alfa[i], col = "red", pch = 1, lwd = 5)
+					text(stop, alfa[i], labels = i, pos = 1)
+				}
+				text(start, y[1,i], labels = i, pos = 2)
+			}
+		}
+		if (asymptote != 0) abline(h = asymptote, col = "red", lwd = 2, lty=2)
+		savePlot(paste("06_Graph_", name, "_h=", h, "_tope=", stop, sep=""), type="eps")
+		savePlot(paste("06_Graph_", name, "_h=", h, "_tope=", stop, sep=""), type="pdf")
+	dev.off()
+}
+
+#####
+
+GRAPH <- function(x, y, h, start, stop, name, asymptote){
+	win.graph()
+		plot(x, y, type="l", col = "blue", lwd = 2, xlab="k", ylab=name)
+		grid(nx = NULL, ny = NULL, lty = 2, col = "gray", lwd = 2)
+		points(x[1], y[1], col = "red", pch = 0, lwd = 5)
+		if (asymptote != 0) abline(h = asymptote, col = "red", lwd = 2, lty=2)
+		savePlot(paste("06_Graph_", name, "_h=", h, "_tope=", stop, sep=""), type="eps")
+		savePlot(paste("06_Graph_", name, "_h=", h, "_tope=", stop, sep=""), type="pdf")
+	dev.off()
+}
+
+#####
+
+TracesHK <- function(Y, X, alfa, h, sigma, beta, start, leap, stop, graph=1){
+	# in X there is cte
+	p = ncol(X)
+	discretization = seq(start, stop, leap)
+  	#
+	betaskh = matrix(, length(discretization), p)
+	GoFs = numeric()
+	norms = numeric()
+	norms.rate = numeric()
+	MSEs = numeric() 
+	NCs = numeric() 
+	VIFs = matrix(, length(discretization), p-1)
+	detRs = numeric() 
+	i = 1
+	for (k in discretization) {
+	    betas = BetaKH(Y, X, h, k)[[2]]
+	    betaskh[i,] = t(betas)	
+	    GoFs[i] = 1 - sum((Y-X%*%betaskh[i,])^2)/crossprod(Y)	
+	    norms[i] = norm(betas,"2")
+	    if (h!=0) norms.rate[i] = norm(alfa-betas,"2")/norm(alfa,"2")
+	    if (h==0) norms.rate[i] = norm(betas,"2")
+	    MSEs[i] = MSEhk(X, h, k, sigma, beta, alfa)[[1]] 
+	    NCs[i] = NCk(X,k)
+	    VIFs[i,] = VIFk(X,k)
+	    detRs[i] = detRk(X,k)
+	    i = i + 1
+	}
+	#
+	if (graph == 1) {
+		GRAPHts(betaskh, alfa, h, p, start, leap, stop, name="Estimations", asymptote=0, beta=1)
+		#
+		GRAPH(discretization, GoFs, h, start, stop, name="GoF", asymptote = 0)
+		#
+		GRAPH(discretization, norms, h, start, stop, name="Norms", asymptote = h*norm(alfa,"2"))
+		#
+		GRAPH(discretization, norms.rate, h, start, stop, name="Rate", asymptote = 0.1)
+		#
+		asymptoteMSE = crossprod(betaskh[1,]) - 2*h*crossprod(betaskh[1,], alfa) + h*h*crossprod(alfa)
+		GRAPH(discretization, MSEs, h, start, stop, name="MSE", asymptote = asymptoteMSE)
+		#
+		GRAPH(discretization, NCs, h, start, stop, name="CN", asymptote = 20)
+		#
+		GRAPHts(VIFs, alfa, h, p-1, start, leap, stop, name="VIFs", asymptote=10, beta=0)
+		#
+		GRAPH(discretization, detRs, h, start, stop, name="Det(R)", asymptote = 0)
+	}
+	# for latex tables
+	table.estimations = cbind(discretization, betaskh)
+	write.table(table.estimations, paste("06_Table_estimations_h=", h, ".txt", sep=""), sep=" & ", col.names = F, row.names = F)
+	table.norms.rate = cbind(discretization, norms.rate)
+	write.table(table.norms.rate, paste("06_Table_norms.rate_h=", h, ".txt", sep=""), sep=" & ", col.names = F, row.names = F)
+	table.MSEs = cbind(discretization, MSEs)
+	write.table(table.MSEs, paste("06_Table_MSEs_h=", h, ".txt", sep=""), sep=" & ", col.names = F, row.names = F)
+	table.NCs = cbind(discretization, NCs)
+	write.table(table.NCs, paste("06_Table_NCs_h=", h, ".txt", sep=""), sep=" & ", col.names = F, row.names = F)
+	table.VIFs = cbind(discretization, VIFs)
+	write.table(table.VIFs, paste("06_Table_VIFs_h=", h, ".txt", sep=""), sep=" & ", col.names = F, row.names = F) 
+	table.detRs = cbind(discretization, detRs)
+	write.table(table.detRs, paste("06_Table_detRs_h=", h, ".txt", sep=""), sep=" & ", col.names = F, row.names = F)
+	table.GoFs = cbind(discretization, GoFs)
+	write.table(table.GoFs, paste("06_Table_GoFs_h=", h, ".txt", sep=""), sep=" & ", col.names = F, row.names = F)
+	#
+	output = data.frame(discretization, betaskh, norms, norms.rate, MSEs, NCs, VIFs, detRs, GoFs)
+	return(output)
+}
+
+#####
+
+bootstrap <- function(Y, X, h, k, alfa, ite, setseed){
+	# in X there is cte
+	n = nrow(X)
+	p = ncol(X)
+	#
+	boots = matrix(, ite, p)
+	BAs = matrix(, ite, 1)
+	#
+	if(setseed == 1) set.seed(2023)
+	for (i in 1:ite){
+	  s = sample(1:n, n, replace=T)
+	  l = 1
+	  Xb = matrix(, n, p)
+	  Yb = matrix(, n, 1)
+	  for (j in s)
+	  {
+	    Xb[l,] = X[j,]
+	    Yb[l] = Y[j]
+	    l = l + 1
+	  }
+	  boots[i,] = as.matrix(BetaKH_bootstrap(Yb, Xb, h, k, alfa)[[2]])
+	  BAs[i] = 1 - sum((Yb-Xb%*%boots[i,])^2)/crossprod(Yb)
+	}
+	# BETA: punctual estimation
+		beta = colMeans(boots) 
+		sigma.beta = numeric()
+		for (i in 1:p){
+			sigma.beta[i] = sd(boots[,i])
+		}
+	# BETA: interval estimation type 1
+		int1low = matrix(, p, 1)
+		int1top = matrix(, p, 1)
+		for (i in 1:p){
+		    int1low[i] = quantile(boots[,i], prob=0.025)
+		    int1top[i] = quantile(boots[,i], prob=0.975)
+		}
+		int1.beta = cbind(int1low, int1top)
+	# BETA: interval estimation type 2
+		int2low = array(,p)
+		int2top = array(,p)
+		for (i in 1:p){
+		    int2low[i] = mean(boots[,i])-1.96*sigma.beta[i]
+		    int2top[i] = mean(boots[,i])+1.96*sigma.beta[i]
+		}    
+		int2.beta = cbind(int2low, int2top)
+	# GoF: punctual estimation
+		gof = mean(BAs)
+		sigma.gof = sd(BAs)
+		int1.gof = c(quantile(BAs, prob=0.025), quantile(BAs, prob=0.975))
+		int2.gof = c(mean(BAs)-1.96*sigma.gof, mean(BAs)+1.96*sigma.gof)
+	# 
+	output = list(beta, sigma.beta, int1.beta, int2.beta, gof, int1.gof, int2.gof)
+	return(output)
+}
+
+#####
+
+Stability <- function(Y, X, h, k, alfa, ite, tol, setseed){
+	if(setseed == 1) set.seed(2023)
+	mu = sample(c(3,4,5,6,7), 1)
+	dv = sample(c(3,4,5,6,7), 1)
+	perturbations = perturb_ite(Y, X, h, discretization = k, alfa, ite, mu, dv, tol)
+	if (h==0) output = perturbations[[3]] # ridge
+	if (h==1) output = perturbations[[4]] # penalized
+	return(output)	
+}
+
+#####
+
+PenalizedEstimation <- function(Y, X, h, k, alfa, sigma, beta, ite = 10000, tol = 0.01, setseed=1){
+	# in X there is cte
+	betahk = BetaKH(Y, X, h, k)[[2]]
+	desv.standard = sqrt(varBetaKH(Y, X, h, k)[-1])
+	gof = 1 - sum((Y-X%*%betahk)^2)/crossprod(Y)
+	boot.strap = bootstrap(Y, X, h, k, alfa, ite, setseed)
+	mse = MSEhk(X, h, k, sigma, beta, alfa)[[1]]    
+	nc = NCk(X, k)
+	vifs = VIFk(X, k)
+	det = detRk(X, k)
+	stability = Stability(Y, X, h, k, alfa, ite, tol, setseed)
+	#
+	p = ncol(X)
+	output = matrix(, p+p+p+p+1+2+1+1+(p-1)+1+1, 4) # p beta (penalized+boostrap), p desv.estandar (penalized+boostrap)
+		# p+p beta interval (bootstrap), 1 gof, 2 gof interval (bootstrap)
+		# 1 mse, 1 nc, p-1 vifs, 1 det, 1 stability
+	for (i in 1:p) {
+		output[i,1] = paste("Beta", i)
+		output[i,2] = betahk[i]
+	}
+	for (i in (p+1):(2*p)) {
+		output[i,1] = paste("Desv. Standard", i-p)
+		output[i,2] = desv.standard[[i-p]]
+	}
+	for (i in 1:p) {
+		output[i,4] = paste("Beta", i, "(bootstrap)")
+		output[i,3] = boot.strap[[1]][i]
+	}
+	for (i in (p+1):(2*p)) {
+		output[i,4] = paste("Desv. Standard", i-p, "(bootstrap)")
+		output[i,3] = boot.strap[[2]][i-p]
+	}
+	for (i in (2*p+1):(3*p)) {
+		output[i,1] = paste("Beta", i-2*p, "interval: Low") # quantile
+		output[i,2] = boot.strap[[3]][i-2*p,1]
+		output[i,3] = boot.strap[[3]][i-2*p,2]
+		output[i,4] = paste("Top", i-2*p, "(bootstrap type 1)")
+	}
+	for (i in (3*p+1):(4*p)) {
+		output[i,1] = paste("Beta", i-3*p, "interval: Low") # mean \pm 1.96*sigma
+		output[i,2] = boot.strap[[4]][i-3*p,1]
+		output[i,3] = boot.strap[[4]][i-3*p,2]
+		output[i,4] = paste("Top", i-3*p, "(bootstrap type 2)")
+	}
+	output[4*p+1,1] = "God of Fit"
+	output[4*p+1,2] = gof
+	output[4*p+1,3] = boot.strap[[5]]
+	output[4*p+1,4] = "God of Fit (bootstrap)"
+	output[4*p+2,1] = "God of Fit interval: Low"
+	output[4*p+2,2] = boot.strap[[6]][1]
+	output[4*p+2,3] = boot.strap[[6]][2]
+	output[4*p+2,4] = "Top (bootstrap type 1)"
+	output[4*p+3,1] = "God of Fit interval: Low"
+	output[4*p+3,2] = boot.strap[[7]][1]
+	output[4*p+3,3] = boot.strap[[7]][2]
+	output[4*p+3,4] = "Top (bootstrap type 2)"
+	output[4*p+4,1] = "Mean Squared Error"
+	output[4*p+4,2] = mse
+	output[4*p+4,3] = ""
+	output[4*p+4,4] = ""
+	output[4*p+5,1] = "Condition Number"
+	output[4*p+5,2] = nc
+	output[4*p+5,3] = ""
+	output[4*p+5,4] = ""
+	j = 1
+	for (i in (4*p+6):(5*p+4)) {
+		output[i,1] = paste("VIF", j) 
+		output[i,2] = vifs[j]
+		output[i,3] = ""
+		output[i,4] = ""
+		j = j + 1
+	}
+	output[5*p+5,1] = "Determinant of Matrix Correlation"
+	output[5*p+5,2] = det
+	output[5*p+5,3] = ""
+	output[5*p+5,4] = ""
+	output[5*p+6,1] = "Stability"
+	output[5*p+6,2] = stability
+	output[5*p+6,3] = ""
+	output[5*p+6,4] = ""
+	write.table(output, paste("06_output_h=", h, "_k=", k, ".txt", sep=""), sep=" & ", col.names = F, row.names = F)
+	return(output)
+}
