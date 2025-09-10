@@ -1,0 +1,46 @@
+############################################
+
+perturb <- function(x, mu, dv, tol){
+  p = rnorm(length(x), mu, dv)
+  x.p = x + p*tol*(norm(x,"2")/norm(p,"2"))
+  return(x.p)
+}
+
+##
+
+perturb_ite <- function(Y, X, h, discretization, alfa, ite = 1000, mu, dv, tol){
+	norm_beta_mu = numeric() 
+	norm_betak_mu = numeric() 
+	norm_betahk_mu = numeric() 
+	m = 0
+	for (k in discretization){
+		norm_beta = numeric() 
+		norm_betak = numeric()
+		norm_betahk = numeric() 
+		reg = lm(Y~X+0) 
+		beta = as.double(reg$coefficients)
+		betak = BetaKH_bootstrap(Y, X, h=0, k, alfa)[[2]] # ridge
+		betahk = BetaKH_bootstrap(Y, X, h, k, alfa)[[2]] # penalized
+		n = nrow(X)
+		X.p = matrix(1, n, p)
+		for (i in 1:ite){
+		  for (j in 1:(p-1)) X.p[,j+1] = perturb(X[,j+1], mu, dv, tol) # keep in mind that in X there is a constant but not in X.p
+		  reg.p = lm(Y~X.p+0) 
+		  beta.p = as.double(reg.p$coefficients)
+		  betak.p = BetaKH_bootstrap(Y, X.p, h=0, k, alfa)[[2]] # ridge
+		  betahk.p = BetaKH_bootstrap(Y, X.p, h, k, alfa)[[2]] # penalized
+		  norm_beta[i] = (norm(beta-beta.p, "2")/norm(beta,"2"))*100
+		  norm_betak[i] = (norm(betak-betak.p, "2")/norm(betak,"2"))*100
+		  norm_betahk[i] = (norm(betahk-betahk.p, "2")/norm(betahk,"2"))*100
+		}
+	m = m + 1
+	norm_beta_mu[m] = mean(norm_beta)
+	norm_betak_mu[m] = mean(norm_betak)
+	norm_betahk_mu[m] = mean(norm_betahk)
+	}
+	output = data.frame(discretization, norm_beta_mu, norm_betak_mu, norm_betahk_mu)
+	return(output)
+}
+
+############################################
+
